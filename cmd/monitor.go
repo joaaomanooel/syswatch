@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 	"runtime"
@@ -25,7 +24,10 @@ func clearScreen() {
 		cmd = exec.Command("clear")
 	}
 	cmd.Stdout = os.Stdout
-	cmd.Run()
+
+	if err := cmd.Run(); err != nil {
+		panic(err)
+	}
 }
 
 func handleMonitor(cmd *cobra.Command, args []string) error {
@@ -35,16 +37,12 @@ func handleMonitor(cmd *cobra.Command, args []string) error {
 	for range ticker.C {
 		clearScreen()
 
-		data, err := metrics.CollectAll()
+		data, err := metrics.CollectAll(&metrics.RealProvider{})
 		if err != nil {
 			return err
 		}
 
-		// Single formatted print instead of multiple prints
-		fmt.Printf("CPU Usage:    %.2f%%\n", data.CPUPercent)
-		fmt.Printf("Memory Usage: %.2f%%\n", data.MemPercent)
-		fmt.Printf("Disk Usage:   %.2f%%\n", data.DiskPercent)
-		fmt.Printf("Processes:    %d\n\n", data.ProcessCount)
+		metrics.Print(data)
 	}
 	return nil
 }
@@ -53,7 +51,7 @@ func MonitorCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "monitor",
 		Short: "Monitor system resources in real time",
-		Long:  `Exibe uso de CPU, memória, disco e contagem de processos em tempo real.`,
+		Long:  `Displays CPU, memory, disk and process count metrics at configurable intervals.`,
 		RunE:  handleMonitor,
 	}
 
