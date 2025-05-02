@@ -37,7 +37,8 @@ func handleMonitor(cmd *cobra.Command, args []string) error {
 	for range ticker.C {
 		clearScreen()
 
-		data, err := metrics.CollectAll(&metrics.RealProvider{})
+		provider := &metrics.RealProvider{}
+		data, err := metrics.CollectAll(provider)
 		if err != nil {
 			return err
 		}
