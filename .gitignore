@@ -1,0 +1,10 @@
+# bin
+bin/
+dist/
+
+# data
+tasks.json
+
+# Tests
+coverage/*
+!coverage/.gitkeep
