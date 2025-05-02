@@ -1,7 +1,10 @@
 package metrics
 
 import (
+	"bytes"
 	"errors"
+	"io"
+	"os"
 	"testing"
 	"time"
 
@@ -67,6 +70,33 @@ func (t *MetricsTestSuite) TestCollectAll_Error() {
 
 	assert.Error(t.T(), err, "should return an error when provider fails")
 	assert.Nil(t.T(), result, "result should be nil on error")
+}
+
+func (t *MetricsTestSuite) TestPrint() {
+	data := &Data{
+		CPUPercent:   25.5,
+		MemPercent:   60.2,
+		DiskPercent:  75.8,
+		ProcessCount: 100,
+	}
+
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	Print(data)
+
+	w.Close()
+	os.Stdout = old
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+	output := buf.String()
+
+	assert.Contains(t.T(), output, "25.50%")
+	assert.Contains(t.T(), output, "60.20%")
+	assert.Contains(t.T(), output, "75.80%")
+	assert.Contains(t.T(), output, "100")
 }
 
 func TestMetricsSuite(t *testing.T) {
