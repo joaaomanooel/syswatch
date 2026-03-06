@@ -1,9 +1,9 @@
 name: Homebrew
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   homebrew:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -21,7 +22,8 @@ jobs:
       - name: Get latest tag
         id: tag
         run: |
-          TAG=${GITHUB_REF#refs/tags/}
+          git fetch --tags
+          TAG=$(git describe --tags --abbrev=0)
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Update Homebrew Tap
@@ -29,19 +31,22 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG=${{ steps.tag.outputs.tag }}
+          VERSION=${TAG#v}
           
-          # Clone or create the tap repository
-          git clone https://${{ secrets.GITHUB_TOKEN }}@github.com/joaaomanooel/homebrew-syswatch.git /tmp/homebrew-syswatch || \
-            (mkdir -p /tmp/homebrew-syswatch && cd /tmp/homebrew-syswatch && git init)
+          if ! git clone https://${{ secrets.GITHUB_TOKEN }}@github.com/joaaomanooel/homebrew-syswatch.git /tmp/homebrew-syswatch 2>/dev/null; then
+            mkdir -p /tmp/homebrew-syswatch
+            cd /tmp/homebrew-syswatch
+            git init
+            git remote add origin https://${{ secrets.GITHUB_TOKEN }}@github.com/joaaomanooel/homebrew-syswatch.git
+          fi
 
           cd /tmp/homebrew-syswatch
+          mkdir -p Formula
 
-          # Update version in formula
-          sed -i "s/version \".*\"/version \"${TAG#v}\"/" Formula/syswatch.rb
+          printf 'class Syswatch < Formula\n  desc "CLI system monitoring tool"\n  homepage "https://github.com/joaaomanooel/syswatch"\n  version "%s"\n  license "MIT"\n\n  on_macos do\n    if Hardware::CPU.arm?\n      url "https://github.com/joaaomanooel/syswatch/releases/download/%s/syswatch-darwin-arm64.zip"\n    else\n      url "https://github.com/joaaomanooel/syswatch/releases/download/%s/syswatch-darwin-amd64.zip"\n    end\n  end\n\n  on_linux do\n    if Hardware::CPU.arm64?\n      url "https://github.com/joaaomanooel/syswatch/releases/download/%s/syswatch-linux-arm64.zip"\n    else\n      url "https://github.com/joaaomanooel/syswatch/releases/download/%s/syswatch-linux-amd64.zip"\n    end\n  end\n\n  def install\n    bin.install "syswatch"\n  end\n\n  test do\n    system "#{bin}/syswatch", "--version"\n  end\nend\n' "$VERSION" "$TAG" "$TAG" "$TAG" "$TAG" > Formula/syswatch.rb
 
-          # Commit and push
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
           git add .
-          git commit -m "Update syswatch to ${TAG}"
-          git push
+          git commit -m "Update syswatch to $TAG" || echo "No changes to commit"
+          git push origin main || git push -u origin main
