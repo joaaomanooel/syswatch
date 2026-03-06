@@ -28,16 +28,16 @@ jobs:
 
       - name: Update Homebrew Tap
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TOKEN: ${{ secrets.HOMEBREW_TOKEN }}
         run: |
           TAG=${{ steps.tag.outputs.tag }}
           VERSION=${TAG#v}
           
-          if ! git clone https://${{ secrets.GITHUB_TOKEN }}@github.com/joaaomanooel/homebrew-syswatch.git /tmp/homebrew-syswatch 2>/dev/null; then
+          if ! git clone https://${{ secrets.HOMEBREW_TOKEN }}@github.com/joaaomanooel/homebrew-syswatch.git /tmp/homebrew-syswatch 2>/dev/null; then
             mkdir -p /tmp/homebrew-syswatch
             cd /tmp/homebrew-syswatch
             git init
-            git remote add origin https://${{ secrets.GITHUB_TOKEN }}@github.com/joaaomanooel/homebrew-syswatch.git
+            git remote add origin https://${{ secrets.HOMEBREW_TOKEN }}@github.com/joaaomanooel/homebrew-syswatch.git
           fi
 
           cd /tmp/homebrew-syswatch
@@ -49,4 +49,4 @@ jobs:
           git config user.name "github-actions[bot]"
           git add .
           git commit -m "Update syswatch to $TAG" || echo "No changes to commit"
-          git push origin main || git push -u origin main
+          git push https://${{ secrets.HOMEBREW_TOKEN }}@github.com/joaaomanooel/homebrew-syswatch.git main || git push -u https://${{ secrets.HOMEBREW_TOKEN }}@github.com/joaaomanooel/homebrew-syswatch.git main
