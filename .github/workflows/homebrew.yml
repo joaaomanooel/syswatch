@@ -6,25 +6,42 @@ on:
       - 'v*'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   homebrew:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Get latest tag
         id: tag
         run: |
-          git fetch --tags
-          TAG=$(git describe --tags --abbrev=0)
+          TAG=${GITHUB_REF#refs/tags/}
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-      - name: Create Pull Request
-        uses: dawidd6/action-homebrew-bump-formula@v3
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          formula: syswatch
-          repoowner: joaaomanooel
-          reponame: homebrew-syswatch
-          version: ${{ steps.tag.outputs.tag }}
+      - name: Update Homebrew Tap
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=${{ steps.tag.outputs.tag }}
+          
+          # Clone or create the tap repository
+          git clone https://${{ secrets.GITHUB_TOKEN }}@github.com/joaaomanooel/homebrew-syswatch.git /tmp/homebrew-syswatch || \
+            (mkdir -p /tmp/homebrew-syswatch && cd /tmp/homebrew-syswatch && git init)
+
+          cd /tmp/homebrew-syswatch
+
+          # Update version in formula
+          sed -i "s/version \".*\"/version \"${TAG#v}\"/" Formula/syswatch.rb
+
+          # Commit and push
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add .
+          git commit -m "Update syswatch to ${TAG}"
+          git push
