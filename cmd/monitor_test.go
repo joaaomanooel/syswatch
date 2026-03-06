@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
@@ -18,11 +17,6 @@ type MonitorTestSuite struct {
 }
 
 func (s *MonitorTestSuite) SetupTest() {
-	rootCmd := &cobra.Command{
-		Use:   "syswatch",
-		Short: "syswatch monitor test suite",
-	}
-
 	s.buffer = &bytes.Buffer{}
 
 	s.stop = make(chan struct{})
@@ -37,8 +31,6 @@ func (s *MonitorTestSuite) SetupTest() {
 		return t
 	}
 
-	rootCmd.ResetCommands()
-	rootCmd.AddCommand(MonitorCmd())
 	rootCmd.SetOut(s.buffer)
 	rootCmd.SetErr(s.buffer)
 }
@@ -58,7 +50,7 @@ func (s *MonitorTestSuite) TestMonitorCommand_OutputsMetrics() {
 
 		assert.NoError(s.T(), err)
 
-		out := s.buffer.String()
+		out := bufOut.String()
 		assert.Contains(s.T(), out, "CPU Usage:", "deve exibir uso de CPU")
 		assert.Contains(s.T(), out, "Memory Usage:", "deve exibir uso de memória")
 		assert.Contains(s.T(), out, "Disk Usage:", "deve exibir uso de disco")

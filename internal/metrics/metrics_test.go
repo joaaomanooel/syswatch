@@ -3,6 +3,7 @@ package metrics
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"testing"
@@ -72,6 +73,22 @@ func (t *MetricsTestSuite) TestCollectAll_Error() {
 	assert.Nil(t.T(), result, "result should be nil on error")
 }
 
+func (t *MetricsTestSuite) TestCollectAll_EmptyCPU() {
+	provider := mockProvider{
+		cpuData: []float64{},
+		vmData:  &mem.VirtualMemoryStat{UsedPercent: 50.0},
+		duData:  &disk.UsageStat{UsedPercent: 50.0},
+		procs:   []*process.Process{},
+		err:     nil,
+	}
+
+	result, err := CollectAll(provider)
+
+	assert.NoError(t.T(), err)
+	assert.NotNil(t.T(), result)
+	assert.Equal(t.T(), 0.0, result.CPUPercent, "CPUPercent should be 0 for empty slice")
+}
+
 func (t *MetricsTestSuite) TestPrint() {
 	data := &Data{
 		CPUPercent:   25.5,
@@ -86,11 +103,17 @@ func (t *MetricsTestSuite) TestPrint() {
 
 	Print(data)
 
-	w.Close()
+	if err := w.Close(); err != nil {
+		assert.NoError(t.T(), err)
+	}
+
 	os.Stdout = old
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	if _, err := io.Copy(&buf, r); err != nil {
+		assert.NoError(t.T(), err)
+	}
+
 	output := buf.String()
 
 	assert.Contains(t.T(), output, "25.50%")
@@ -99,6 +122,121 @@ func (t *MetricsTestSuite) TestPrint() {
 	assert.Contains(t.T(), output, "100")
 }
 
+// Remove any TestStreamPrinter method from the suite
+// The standalone TestStreamPrinter function will handle this testing
+
 func TestMetricsSuite(t *testing.T) {
 	suite.Run(t, new(MetricsTestSuite))
+}
+
+func TestRealProvider(t *testing.T) {
+	t.Run("RealProvider can collect CPUPercent", func(t *testing.T) {
+		provider := &RealProvider{}
+		cpu, err := provider.CPUPercent(0, false)
+		assert.NoError(t, err)
+		assert.NotNil(t, cpu)
+	})
+
+	t.Run("RealProvider can collect VirtualMemory", func(t *testing.T) {
+		provider := &RealProvider{}
+		vm, err := provider.VirtualMemory()
+		assert.NoError(t, err)
+		assert.NotNil(t, vm)
+	})
+
+	t.Run("RealProvider can collect DiskUsage", func(t *testing.T) {
+		provider := &RealProvider{}
+		du, err := provider.DiskUsage("/")
+		assert.NoError(t, err)
+		assert.NotNil(t, du)
+	})
+
+	t.Run("RealProvider can collect Processes", func(t *testing.T) {
+		provider := &RealProvider{}
+		procs, err := provider.Processes()
+		assert.NoError(t, err)
+		assert.NotNil(t, procs)
+	})
+}
+
+// Keep the standalone TestStreamPrinter function as is
+func TestStreamPrinter(t *testing.T) {
+	t.Run("NewStreamPrinter with nil writer", func(t *testing.T) {
+		sp := NewStreamPrinter(nil)
+		assert.NotNil(t, sp)
+		assert.Equal(t, os.Stdout, sp.out)
+	})
+
+	t.Run("NewStreamPrinter with custom writer", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		sp := NewStreamPrinter(buf)
+		assert.NotNil(t, sp)
+		assert.Equal(t, buf, sp.out)
+	})
+
+	t.Run("Start method writes expected output", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		sp := NewStreamPrinter(buf)
+		sp.Start()
+
+		expected := fmt.Sprintf("%s%s%sSysWatch - Real-time System Metrics\nPress Ctrl+C to exit\nCPU Usage:      0.00%%\nMemory Usage:   0.00%%\nDisk Usage:     0.00%%\nProcesses:      0\n",
+			hideCursor, clearScreen, moveCursorHome)
+		assert.Equal(t, expected, buf.String())
+	})
+
+	t.Run("Update method writes expected output", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		sp := NewStreamPrinter(buf)
+
+		data := &Data{
+			CPUPercent:   10.5,
+			MemPercent:   45.2,
+			DiskPercent:  75.8,
+			ProcessCount: 123,
+		}
+
+		sp.Update(data)
+
+		expected := fmt.Sprintf("%s%.2f%%%s%.2f%%%s%.2f%%%s%d   ",
+			moveToCPUValue, data.CPUPercent,
+			moveToMemoryValue, data.MemPercent,
+			moveToDiskValue, data.DiskPercent,
+			moveToProcessValue, data.ProcessCount)
+		assert.Equal(t, expected, buf.String())
+	})
+
+	t.Run("Stop method writes expected output", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		sp := NewStreamPrinter(buf)
+
+		sp.Stop()
+
+		expected := fmt.Sprintf("%s\n\nMonitoring stopped.\n", showCursor)
+		assert.Equal(t, expected, buf.String())
+	})
+
+	t.Run("Full lifecycle test", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		sp := NewStreamPrinter(buf)
+
+		sp.Start()
+		buf.Reset() // Clear buffer after Start
+
+		data := &Data{
+			CPUPercent:   10.5,
+			MemPercent:   45.2,
+			DiskPercent:  75.8,
+			ProcessCount: 123,
+		}
+
+		sp.Update(data)
+		sp.Stop()
+
+		// Check that the buffer contains both Update and Stop outputs
+		assert.Contains(t, buf.String(), "10.50%")
+		assert.Contains(t, buf.String(), "45.20%")
+		assert.Contains(t, buf.String(), "75.80%")
+		assert.Contains(t, buf.String(), "123")
+		assert.Contains(t, buf.String(), "Monitoring stopped")
+	})
 }

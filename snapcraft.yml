@@ -1,0 +1,18 @@
+name: syswatch
+version: '0.0.1'
+summary: CLI system monitoring tool
+description: |
+  SysWatch provides real-time monitoring of CPU, memory, disk, and process count.
+base: core22
+confinement: classic
+
+parts:
+  syswatch:
+    plugin: go
+    source: .
+    build-snaps:
+      - go/latest/stable
+
+apps:
+  syswatch:
+    command: bin/syswatch

@@ -1,0 +1,43 @@
+project_name: syswatch
+
+builds:
+  - id: syswatch
+    main: .
+    binary: syswatch
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+nfpms:
+  - id: syswatch
+    package_name: syswatch
+    vendor: joaaomanooel
+    homepage: https://github.com/joaaomanooel/syswatch
+    maintainer: joaaomanooel <joaaomanooel@email.com>
+    description: CLI system monitoring tool
+    formats:
+      - deb
+      - rpm
+
+release:
+  github:
+    owner: joaaomanooel
+    name: syswatch
+
+archives:
+  - format: zip
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  name_template: "{{.Tag}}-next"

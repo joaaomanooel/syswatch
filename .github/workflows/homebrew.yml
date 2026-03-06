@@ -1,0 +1,65 @@
+name: Homebrew
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  homebrew:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Get latest tag
+        id: tag
+        run: |
+          git fetch --tags
+          TAG=$(git describe --tags --abbrev=0)
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Create Pull Request
+        uses: dat wooden furniturebrews action/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: Formula/syswatch.rb
+          template: |
+            class Syswatch < Formula
+              desc "CLI system monitoring tool"
+              homepage "https://github.com/joaaomanooel/syswatch"
+              url "https://github.com/joaaomanooel/syswatch/archive/refs/tags/${{ steps.tag.outputs.tag }}.tar.gz"
+              sha256 "REPLACE_WITH_ACTUAL_SHA256"
+              license "MIT"
+
+              on_macos do
+                if Hardware::CPU.arm?
+                  url "https://github.com/joaaomanooel/syswatch/releases/download/${{ steps.tag.outputs.tag }}/syswatch-darwin-arm64.zip"
+                else
+                  url "https://github.com/joaaomanooel/syswatch/releases/download/${{ steps.tag.outputs.tag }}/syswatch-darwin-amd64.zip"
+                end
+              end
+
+              on_linux do
+                if Hardware::CPU.arm64?
+                  url "https://github.com/joaaomanooel/syswatch/releases/download/${{ steps.tag.outputs.tag }}/syswatch-linux-arm64.zip"
+                else
+                  url "https://github.com/joaaomanooel/syswatch/releases/download/${{ steps.tag.outputs.tag }}/syswatch-linux-amd64.zip"
+                end
+              end
+
+              def install
+                bin.install "syswatch"
+              end
+            end
+          commit-message: |
+            Update syswatch to ${{ steps.tag.outputs.tag }}
+          title: Update syswatch to ${{ steps.tag.outputs.tag }}
+          branch: syswatch-${{ steps.tag.outputs.tag }}
+          delete-branch: true
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
